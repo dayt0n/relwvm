@@ -4,6 +4,8 @@
 
 bool ignore_errors = false;
 
+bool human_readable = false; //I'm evil.
+
 struct HFSPlusVolumeHeader {
 	uint16_t signature;
 	uint16_t version;

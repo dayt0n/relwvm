@@ -104,9 +104,18 @@ int print_pt(FILE *img_f)
 		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n");
 		else printf("no\n");
 		
-		printf("-Begin: %llu\n", *(&LwVM->partitions[i].begin));
-		printf("-End: %llu\n", *(&LwVM->partitions[i].end));
-		printf("-Size: %llu\n", *(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin));
+		if (human_readable)
+		{
+			printf("-Begin (?): %lluMB (%lluGB)\n", *(&LwVM->partitions[i].begin) / 1024 / 1024, *(&LwVM->partitions[i].begin) / 1024 / 1024 / 1024);
+			printf("-End (?): %lluMB (%lluGB)\n", *(&LwVM->partitions[i].end) / 1024 / 1024, *(&LwVM->partitions[i].end) / 1024 / 1024 / 1024);
+			printf("-Size (?): %lluMB (%lluGB)\n", (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024, (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024 / 1024);
+		}
+		else
+		{
+			printf("-Begin (?): %lluB\n", *(&LwVM->partitions[i].begin));
+			printf("-End (?): %lluB.\n", *(&LwVM->partitions[i].end));
+			printf("-Size (?): %lluB.\n", *(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin));
+		}
 		
 		free(part_name);
 	}
@@ -168,6 +177,10 @@ int main(int argc, const char *argv[])
 		else if (!strcmp(argv[i], "-e") || !strcmp(argv[i], "--ignore-errors"))
 		{
 			ignore_errors = true;
+		}
+		else if (!strcmp(argv[i], "-H") || !strcmp(argv[i], "--human-readable"))
+		{
+			human_readable = true;
 		}
 		else if (argv[i][0] != '-')
 		{
