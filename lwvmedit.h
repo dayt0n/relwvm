@@ -4,6 +4,43 @@
 
 bool ignore_errors = false;
 
+struct HFSPlusVolumeHeader {
+	uint16_t signature;
+	uint16_t version;
+	uint32_t attributes;
+	uint32_t lastMountedVersion;
+	uint32_t journalInfoBlock;
+	
+	uint32_t createDate;
+	uint32_t modifyDate;
+	uint32_t backupDate;
+	uint32_t checkedDate;
+	
+	uint32_t fileCount;
+	uint32_t folderCount;
+	
+	uint32_t blockSize;
+	uint32_t totalBlocks;
+	uint32_t freeBlocks;
+	
+	uint32_t nextAllocation;
+	uint32_t rsrcClumpSize;
+	uint32_t dataClumpSize;
+	uint32_t nextCatalogID;
+	
+	uint32_t writeCount;
+	uint64_t encodingsBitmap;
+	
+	uint32_t finderInfo[6];
+	uint64_t volumeUUID;
+	/*
+	HFSPlusForkData allocationFile;
+	HFSPlusForkData extentsFile;
+	HFSPlusForkData catalogFile;
+	HFSPlusForkData attributesFile;
+	HFSPlusForkData startupFile;*/
+} __attribute__((packed));
+
 typedef struct _LwVMPartitionRecord {
 	uint64_t type[2];
 	uint64_t guid[2];

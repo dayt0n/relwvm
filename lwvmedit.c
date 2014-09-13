@@ -5,6 +5,7 @@
 #include "lwvmedit.h"
 
 
+//hexDump is not mine.
 /*void hexDump (char *desc, void *addr, int len) {
     int i;
     unsigned char buff[17];
@@ -73,6 +74,8 @@ char *lwvm_name_to_str(char *name)
 
 int print_pt(FILE *img_f)
 {
+	printf("Listing partitions...\n");
+	
 	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
 	fread(LwVM, 1, sizeof(*LwVM), img_f);
 	if (memcmp(LwVM->type, LwVMType, sizeof(LwVMType)) != 0)
@@ -93,11 +96,17 @@ int print_pt(FILE *img_f)
 		
 		if (part_name == 0) break;
 		
-		printf("Partition %i:\n", i + 1);
+		printf("\nPartition %i:\n", i + 1);
+		
 		printf("-Name: %s\n", part_name);
+		
 		printf("-Encryption: ");
 		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n");
 		else printf("no\n");
+		
+		printf("-Begin: %llu\n", *(&LwVM->partitions[i].begin));
+		printf("-End: %llu\n", *(&LwVM->partitions[i].end));
+		printf("-Size: %llu\n", *(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin));
 		
 		free(part_name);
 	}
