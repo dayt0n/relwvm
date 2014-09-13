@@ -1,4 +1,5 @@
-#define A_LIST 1;
+#define A_LIST 1
+#define A_EDIT 2
 
 #define LwVM_NAME_LEN 0x24
 

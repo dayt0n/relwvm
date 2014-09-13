@@ -2,24 +2,17 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include <math.h>
 #include "lwvmedit.h"
 
 
 char *lwvm_name_to_str(char *name)
 {
+	if (name[0] == 0 || name[1] != 0) return 0;
+	
 	char *output = malloc(LwVM_NAME_LEN + 1);
 	
-	output[0] = (char) name[0];
-	
-	if (output[0] == 0)
-	{
-		free(output);
-		return 0;
-	}
-	
 	int i;
-	for (i = 1; i < LwVM_NAME_LEN && name[i * 2] != 0; i++)
+	for (i = 0; i < LwVM_NAME_LEN && name[i * 2] != 0; i++)
 	{
 		output[i] = (char) name[i * 2];
 	}
@@ -29,12 +22,10 @@ char *lwvm_name_to_str(char *name)
 	return output;
 }
 
-int print_pt(FILE *img_f)
+int print_pt(FILE *img_f, struct _LwVM *LwVM)
 {
 	printf("Listing partitions...\n");
 	
-	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
-	fread(LwVM, 1, sizeof(*LwVM), img_f);
 	if (memcmp(LwVM->type, LwVMType, sizeof(LwVMType)) != 0)
 	{
 		printf("LwVM is probably damaged, ");
@@ -47,7 +38,7 @@ int print_pt(FILE *img_f)
 	}
 	
 	int i;
-	for (i = 0; i < 12; i++)
+	for (i = 0; i < *(&LwVM->numPartitions); i++)
 	{
 		char *part_name = lwvm_name_to_str(&LwVM->partitions[i].partitionName);
 		
@@ -57,7 +48,7 @@ int print_pt(FILE *img_f)
 		
 		printf("-Name: %s\n", part_name);
 		
-		printf("-Encryption: ");
+		printf("-Encryption (?): ");
 		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n");
 		else printf("no\n");
 		
@@ -80,6 +71,28 @@ int print_pt(FILE *img_f)
 	return 0;
 }
 
+void damage_warning()
+{
+	printf("WARNING: this expiremental tool is very DANGEROUS. You are going to edit the partition table with it. Use it your own risk! The copyright holder is not responsible for any damage this software can do.\n");
+	printf("Are you sure you want to conitunue? [y/n]");
+	
+	int input;
+	while (input != 'y')
+	{
+		input = getchar();
+		if (input == 'n') exit(1);
+	}
+}
+
+int edit_pt(FILE *img_f, struct _LwVM *LwVM)
+{
+	damage_warning();
+	
+	
+	
+	return 0;
+}
+
 void help(const char *exec_path)
 {
 	printf("lwvmedit v0.1\n");
@@ -88,8 +101,10 @@ void help(const char *exec_path)
 	printf("Options:\n");
 	printf(" -h, --help		show this help text and exit.\n");
 	printf(" -v, --version		show version and exit.\n");
-	printf(" -l, --list		list partitions.");
-	printf(" -e, --ignore-errors	ignore errors, some fatals can still interrupt execution.\n");
+	printf(" -l, --list		list partitions.\n");
+	printf(" -E, --ignore-errors	ignore errors, some fatals can still interrupt execution.\n");
+	printf(" -H, --human-readable	output all values in human-readable format.\n");
+	printf(" -e, --edit		edit the partition table (possibly dangerous!).\n");
 }
 
 void version()
@@ -131,13 +146,17 @@ int main(int argc, const char *argv[])
 		{
 			action = A_LIST;
 		}
-		else if (!strcmp(argv[i], "-e") || !strcmp(argv[i], "--ignore-errors"))
+		else if (!strcmp(argv[i], "-E") || !strcmp(argv[i], "--ignore-errors"))
 		{
 			ignore_errors = true;
 		}
 		else if (!strcmp(argv[i], "-H") || !strcmp(argv[i], "--human-readable"))
 		{
 			human_readable = true;
+		}
+		else if (!strcmp(argv[i], "-e") || !strcmp(argv[i], "--edit"))
+		{
+			action = A_EDIT;
 		}
 		else if (argv[i][0] != '-')
 		{
@@ -158,15 +177,34 @@ int main(int argc, const char *argv[])
 	}
 	
 	FILE *img_f = fopen(argv[fn_arg], "r+");
+	
 	if (img_f == 0)
 	{
 		printf("Can't open file: %s\n", argv[fn_arg]);
 		return 1;
+        }
+	
+	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
+	fread(LwVM, 1, sizeof(*LwVM), img_f);
+	
+	if (memcmp(LwVM->type, LwVMType, sizeof(LwVMType)) != 0)
+	{
+		printf("LwVM is probably damaged, ");
+		if (ignore_errors) printf("continuing anyway...\n");
+		else
+		{
+			printf("exiting...\n");
+			return 1;
+		}
 	}
 	
-	if (action == 1)
+	if (action == A_LIST)
 	{
-		return print_pt(img_f);
+		return print_pt(img_f, LwVM);
+	}
+	else if (action == A_EDIT)
+	{
+		return edit_pt(img_f, LwVM);
 	}
 	
 	
