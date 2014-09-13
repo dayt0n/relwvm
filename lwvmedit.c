@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 #include "lwvmedit.h"
 
 
@@ -106,15 +107,15 @@ int print_pt(FILE *img_f)
 		
 		if (human_readable)
 		{
-			printf("-Begin (?): %lluMB (%lluGB)\n", *(&LwVM->partitions[i].begin) / 1024 / 1024, *(&LwVM->partitions[i].begin) / 1024 / 1024 / 1024);
-			printf("-End (?): %lluMB (%lluGB)\n", *(&LwVM->partitions[i].end) / 1024 / 1024, *(&LwVM->partitions[i].end) / 1024 / 1024 / 1024);
-			printf("-Size (?): %lluMB (%lluGB)\n", (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024, (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024 / 1024);
+			printf("-Begin: %fGB (%fMB)\n", (double) *(&LwVM->partitions[i].begin) / 1024 / 1024 / 1024, (double) *(&LwVM->partitions[i].begin) / 1024 / 1024);
+			printf("-End: %fGB (%fMB)\n", (double) *(&LwVM->partitions[i].end) / 1024 / 1024 / 1024, (double) *(&LwVM->partitions[i].end) / 1024 / 1024);
+			printf("-Begin: %fGB (%fMB)\n", (double) (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024 / 1024, (double) (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024);
 		}
 		else
 		{
-			printf("-Begin (?): %lluB\n", *(&LwVM->partitions[i].begin));
-			printf("-End (?): %lluB.\n", *(&LwVM->partitions[i].end));
-			printf("-Size (?): %lluB.\n", *(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin));
+			printf("-Begin: %lluB\n", *(&LwVM->partitions[i].begin));
+			printf("-End: %lluB.\n", *(&LwVM->partitions[i].end));
+			printf("-Size: %lluB.\n", *(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin));
 		}
 		
 		free(part_name);
