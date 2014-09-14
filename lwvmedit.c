@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 #include "lwvmedit.h"
 
 
@@ -22,31 +23,31 @@ char *lwvm_name_to_str(char *name)
 	return output;
 }
 
-int print_pt(FILE *img_f, struct _LwVM *LwVM)
+int print_pt(FILE *img_f, struct _LwVM *LwVM, bool pt_no_crc)
 {
-	printf("Listing partitions...\n");
+	printf("LwVM info:\n");
 	
-	if (memcmp(LwVM->type, LwVMType, sizeof(LwVMType)) != 0)
-	{
-		printf("LwVM is probably damaged, ");
-		if (ignore_errors) printf("continuing anyway...\n");
-		else
-		{
-			printf("exiting...\n");
-			return 1;
-		}
-	}
+	printf("-CRC: ");
+	if (pt_no_crc) printf("no\n");
+	else printf("yes\n");
+	
+	if (human_readable) printf("-Size: %fGB (%fMB)\n", (double) *(&LwVM->mediaSize) / 1024 / 1024 / 1024, (double) *(&LwVM->mediaSize) / 1024 / 1024);
+	else printf("-Size: %lluB\n", *(&LwVM->mediaSize));
+	
+	printf("This partition table has %u partition(s).\n", *(&LwVM->numPartitions));
 	
 	int i;
 	for (i = 0; i < *(&LwVM->numPartitions); i++)
 	{
-		char *part_name = lwvm_name_to_str(&LwVM->partitions[i].partitionName);
+		char *part_name = lwvm_name_to_str(&LwVM->partitions[i].partitionName[0]);
 		
 		if (part_name == 0) break;
 		
 		printf("\nPartition %i:\n", i + 1);
 		
 		printf("-Name: %s\n", part_name);
+		
+		printf("-GUID (?): %llx%llx\n", *(&LwVM->partitions[i].guid[1]), *(&LwVM->partitions[i].guid[0]));
 		
 		printf("-Encryption (?): ");
 		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n");
@@ -56,7 +57,7 @@ int print_pt(FILE *img_f, struct _LwVM *LwVM)
 		{
 			printf("-Begin: %fGB (%fMB)\n", (double) *(&LwVM->partitions[i].begin) / 1024 / 1024 / 1024, (double) *(&LwVM->partitions[i].begin) / 1024 / 1024);
 			printf("-End: %fGB (%fMB)\n", (double) *(&LwVM->partitions[i].end) / 1024 / 1024 / 1024, (double) *(&LwVM->partitions[i].end) / 1024 / 1024);
-			printf("-Begin: %fGB (%fMB)\n", (double) (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024 / 1024, (double) (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024);
+			printf("-Size: %fGB (%fMB)\n", (double) (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024 / 1024, (double) (*(&LwVM->partitions[i].end) - *(&LwVM->partitions[i].begin)) / 1024 / 1024);
 		}
 		else
 		{
@@ -82,13 +83,46 @@ void damage_warning()
 		input = getchar();
 		if (input == 'n') exit(1);
 	}
+	
+	printf("\n");
 }
 
-int edit_pt(FILE *img_f, struct _LwVM *LwVM)
+void edit_help()
 {
-	damage_warning();
-	
-	
+	printf("? - show help.\n");
+	printf("p - show partition information.\n");
+	printf("q - quit.\n");
+}
+
+int edit_pt(FILE *img_f, struct _LwVM *LwVM, bool pt_no_crc)
+{
+	//Something strange happens with getchar, I don't remember, how to get input in C, will fix soon.
+	/*char *input[2];
+	while(1)
+	{
+		printf("Command (? for help): ");
+		
+		usleep(1000000);
+		
+		fgets(input[0], stdin, 1);
+		
+		if (input[0] == '?')
+		{
+			edit_help();
+		}
+		else if (input[0] == 'p')
+		{
+			print_pt(img_f, LwVM, pt_no_crc);
+		}
+		else if (input[0] == 'q')
+		{
+			break;
+		}
+		else if (input[0] != ' ' && input[0] != '\n')
+		{
+			printf("Unknown command.\n");
+		}
+	}*/
 	
 	return 0;
 }
@@ -104,7 +138,7 @@ void help(const char *exec_path)
 	printf(" -l, --list		list partitions.\n");
 	printf(" -E, --ignore-errors	ignore errors, some fatals can still interrupt execution.\n");
 	printf(" -H, --human-readable	output all values in human-readable format.\n");
-	printf(" -e, --edit		edit the partition table (possibly dangerous!).\n");
+	printf(" -e, --edit		enter interactive mode.\n");
 }
 
 void version()
@@ -187,9 +221,10 @@ int main(int argc, const char *argv[])
 	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
 	fread(LwVM, 1, sizeof(*LwVM), img_f);
 	
-	if (memcmp(LwVM->type, LwVMType, sizeof(LwVMType)) != 0)
+	bool pt_no_crc = !memcmp(LwVM->type, LwVMType_noCRC, sizeof(*LwVMType_noCRC));
+	if (memcmp(LwVM->type, LwVMType, sizeof(*LwVMType)) != 0 && !pt_no_crc)
 	{
-		printf("LwVM is probably damaged, ");
+		printf("LwVM has unknown type, ");
 		if (ignore_errors) printf("continuing anyway...\n");
 		else
 		{
@@ -200,11 +235,11 @@ int main(int argc, const char *argv[])
 	
 	if (action == A_LIST)
 	{
-		return print_pt(img_f, LwVM);
+		return print_pt(img_f, LwVM, pt_no_crc);
 	}
 	else if (action == A_EDIT)
 	{
-		return edit_pt(img_f, LwVM);
+		return edit_pt(img_f, LwVM, pt_no_crc);
 	}
 	
 	
