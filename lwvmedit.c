@@ -212,9 +212,9 @@ int main(int argc, const char *argv[])
 		return 1;
 	}
 	
-	int img_f = open(argv[fn_arg], O_RDWR);
+	FILE *img_f = fopen(argv[fn_arg], "rwb");
 	
-	if (img_f < 0)
+	if (img_f == 0)
 	{
 		printf("Can't open file: %s\n", argv[fn_arg]);
 		
@@ -240,12 +240,12 @@ int main(int argc, const char *argv[])
 	}
 	
 	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
-	read(img_f, LwVM, sizeof(*LwVM));
+	fread(LwVM, 1, sizeof(*LwVM), img_f);
 	
 	bool pt_no_crc = !memcmp(LwVM->type, LwVMType_noCRC, sizeof(*LwVMType_noCRC));
 	if (memcmp(LwVM->type, LwVMType, sizeof(*LwVMType)) != 0 && !pt_no_crc)
 	{
-		printf("LwVM has unknown type, ");
+		printf("LwVM has unknown type or was damaged, ");
 		if (ignore_errors) printf("continuing anyway...\n");
 		else
 		{
@@ -263,7 +263,7 @@ int main(int argc, const char *argv[])
 		return edit_pt(LwVM, pt_no_crc);
 	}
 	
-	close(img_f);
+	fclose(img_f);
 	
 	
 	return 0;
