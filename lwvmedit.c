@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "lwvmedit.h"
 
 
@@ -23,7 +25,7 @@ char *lwvm_name_to_str(char *name)
 	return output;
 }
 
-int print_pt(FILE *img_f, struct _LwVM *LwVM, bool pt_no_crc)
+int print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 {
 	printf("LwVM info:\n");
 	
@@ -94,7 +96,7 @@ void edit_help()
 	printf("q - quit.\n");
 }
 
-int edit_pt(FILE *img_f, struct _LwVM *LwVM, bool pt_no_crc)
+int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 {
 	//Something strange happens with getchar, I don't remember, how to get input in C, will fix soon.
 	/*char *input[2];
@@ -112,7 +114,7 @@ int edit_pt(FILE *img_f, struct _LwVM *LwVM, bool pt_no_crc)
 		}
 		else if (input[0] == 'p')
 		{
-			print_pt(img_f, LwVM, pt_no_crc);
+			print_pt(LwVM, pt_no_crc);
 		}
 		else if (input[0] == 'q')
 		{
@@ -210,16 +212,35 @@ int main(int argc, const char *argv[])
 		return 1;
 	}
 	
-	FILE *img_f = fopen(argv[fn_arg], "r+");
+	int img_f = open(argv[fn_arg], O_RDWR);
 	
-	if (img_f == 0)
+	if (img_f < 0)
 	{
 		printf("Can't open file: %s\n", argv[fn_arg]);
+		
+		if (errno == EBUSY)
+		{
+			printf("Error: device or resource busy.\n");
+		}
+		else if (errno == EPERM)
+		{
+			printf("Error: operation not permitted.\n");
+		}
+		else if (errno == EACCES)
+		{
+			printf("Error: permission denied.\n");
+		}
+		else
+		{
+			printf("Unknown error occured (%i).\n", errno);
+		}
+		
+		
 		return 1;
-        }
+	}
 	
 	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
-	fread(LwVM, 1, sizeof(*LwVM), img_f);
+	read(img_f, LwVM, sizeof(*LwVM));
 	
 	bool pt_no_crc = !memcmp(LwVM->type, LwVMType_noCRC, sizeof(*LwVMType_noCRC));
 	if (memcmp(LwVM->type, LwVMType, sizeof(*LwVMType)) != 0 && !pt_no_crc)
@@ -235,12 +256,14 @@ int main(int argc, const char *argv[])
 	
 	if (action == A_LIST)
 	{
-		return print_pt(img_f, LwVM, pt_no_crc);
+		return print_pt(LwVM, pt_no_crc);
 	}
 	else if (action == A_EDIT)
 	{
-		return edit_pt(img_f, LwVM, pt_no_crc);
+		return edit_pt(LwVM, pt_no_crc);
 	}
+	
+	close(img_f);
 	
 	
 	return 0;
