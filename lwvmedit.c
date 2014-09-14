@@ -263,6 +263,7 @@ int main(int argc, const char *argv[])
 		return edit_pt(LwVM, pt_no_crc);
 	}
 	
+	free(LwVM);
 	fclose(img_f);
 	
 	
