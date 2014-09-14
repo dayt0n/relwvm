@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
 #include "lwvmedit.h"
 
@@ -25,7 +24,7 @@ char *lwvm_name_to_str(char *name)
 	return output;
 }
 
-int print_pt(struct _LwVM *LwVM, bool pt_no_crc)
+void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 {
 	printf("LwVM info:\n");
 	
@@ -39,17 +38,31 @@ int print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 	printf("This partition table has %u partition(s).\n", *(&LwVM->numPartitions));
 	
 	int i;
+	int disabled_partitions = 0;
 	for (i = 0; i < *(&LwVM->numPartitions); i++)
 	{
-		char *part_name = lwvm_name_to_str(&LwVM->partitions[i].partitionName[0]);
-		
-		if (part_name == 0) break;
-		
 		printf("\nPartition %i:\n", i + 1);
 		
+		if (!memcmp(&LwVM->partitions[i].type, LwVMPartitionTypeDisabled, sizeof(*LwVMPartitionTypeDisabled)))
+		{
+			printf("Partition is disabled.\n");
+			continue;
+		}
+		
+		char *part_name = lwvm_name_to_str(&LwVM->partitions[i].partitionName[0]);
 		printf("-Name: %s\n", part_name);
 		
 		printf("-GUID (?): %llx%llx\n", *(&LwVM->partitions[i].guid[1]), *(&LwVM->partitions[i].guid[0]));
+		
+		printf("-Type: ");
+		if (!memcmp(LwVMPartitionTypeHFS, &LwVM->partitions[i].type, sizeof(*LwVMPartitionTypeHFS)))
+		{
+			printf("HFS\n");
+		}
+		else
+		{
+			printf("unrecognized.\n");
+		}
 		
 		printf("-Encryption (?): ");
 		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n");
@@ -70,63 +83,89 @@ int print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 		
 		free(part_name);
 	}
-	
-	return 0;
 }
 
 void damage_warning()
 {
 	printf("WARNING: this expiremental tool is very DANGEROUS. You are going to edit the partition table with it. Use it your own risk! The copyright holder is not responsible for any damage this software can do.\n");
-	printf("Are you sure you want to conitunue? [y/n]");
 	
-	int input;
-	while (input != 'y')
+	char input[3];
+	while (strcmp(input, "y\n"))
 	{
-		input = getchar();
-		if (input == 'n') exit(1);
+		printf("Are you sure you want to conitunue? [y/n]");
+		fgets(input, 3, stdin);
+		if (!strcmp(input, "n\n")) exit(1);
 	}
-	
-	printf("\n");
 }
 
 void edit_help()
 {
-	printf("? - show help.\n");
-	printf("p - show partition information.\n");
-	printf("q - quit.\n");
+	printf("? 	show help.\n");
+	printf("print	show partition information.\n");
+	printf("quit	quit without saving changes.\n");
+	printf("write	save changes and exit.\n");
+	printf("add	add an empty (disabled) partition (max: 12).");
 }
 
 int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 {
-	//Something strange happens with getchar, I don't remember, how to get input in C, will fix soon.
-	/*char *input[2];
+	char input[10];
 	while(1)
 	{
 		printf("Command (? for help): ");
 		
-		usleep(1000000);
+		fgets(&input[0], 10, stdin);
 		
-		fgets(input[0], stdin, 1);
-		
-		if (input[0] == '?')
+		if (!strcmp(input, "?\n") || !strcmp(input, "help\n") || !strcmp(input, "h\n"))
 		{
 			edit_help();
 		}
-		else if (input[0] == 'p')
+		else if (!strcmp(input, "print\n") || !strcmp(input, "p\n"))
 		{
 			print_pt(LwVM, pt_no_crc);
 		}
-		else if (input[0] == 'q')
+		else if (!strcmp(input, "quit\n") || !strcmp(input, "q\n"))
 		{
 			break;
 		}
-		else if (input[0] != ' ' && input[0] != '\n')
+		else if (!strcmp(input, "write\n") || !strcmp(input, "w\n"))
 		{
-			printf("Unknown command.\n");
+			damage_warning();
+			return SAVE_CHANGES;
 		}
-	}*/
+		else if (!strcmp(input, "add\n") || !strcmp(input, "a\n"))
+		{
+			if (*(&LwVM->numPartitions) < 12)
+			{
+				*(&LwVM->numPartitions) = *(&LwVM->numPartitions) + 1;
+				printf("Done.\n");
+			}
+			else printf("Can't create more than 12 partitions.\n");
+		}
+		/*else if (!strcmp(input, "edit\n") || !strcmp(input, "e\n"))
+		{
+			printf("Type the number of the partition you want to edit [1-12]: ");
+			fgets(&input[0], 10, stdin);
+			
+			int part_to_edit = atoi(input);
+			part_to_edit--;
+			if (part_to_edit < 12 && part_to_edit >= 0)
+		}*/
+		else if (strcmp(input, " \n") && strcmp(input, "\n"))
+		{
+			edit_help();
+		}
+		
+		printf("\n");
+	}
 	
-	return 0;
+	return DISCARD_CHANGES;
+}
+
+void cleanup(FILE *img_f, struct _LwVM *LwVM)
+{
+	free(LwVM);
+	fclose(img_f);
 }
 
 void help(const char *exec_path)
@@ -212,7 +251,7 @@ int main(int argc, const char *argv[])
 		return 1;
 	}
 	
-	FILE *img_f = fopen(argv[fn_arg], "rwb");
+	FILE *img_f = fopen(argv[fn_arg], "r+b");
 	
 	if (img_f == 0)
 	{
@@ -240,6 +279,7 @@ int main(int argc, const char *argv[])
 	}
 	
 	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
+	fseek(img_f, 0L, SEEK_SET);
 	fread(LwVM, 1, sizeof(*LwVM), img_f);
 	
 	bool pt_no_crc = !memcmp(LwVM->type, LwVMType_noCRC, sizeof(*LwVMType_noCRC));
@@ -250,21 +290,32 @@ int main(int argc, const char *argv[])
 		else
 		{
 			printf("exiting...\n");
+			cleanup(img_f, LwVM);
 			return 1;
 		}
 	}
 	
 	if (action == A_LIST)
 	{
-		return print_pt(LwVM, pt_no_crc);
+		print_pt(LwVM, pt_no_crc);
 	}
 	else if (action == A_EDIT)
 	{
-		return edit_pt(LwVM, pt_no_crc);
+		int status = edit_pt(LwVM, pt_no_crc);
+		if (status == SAVE_CHANGES)
+		{
+			printf("Writing new LwVM table.\n");
+			//fseek(img_f, 0L, SEEK_SET);
+			printf("wrote: %lu\n", fwrite(LwVM, 1, sizeof(*LwVM), img_f));
+			printf("errno == %i\n", errno);
+		}
+		else if (status == DISCARD_CHANGES)
+		{
+			printf("Discarding changes.\n");
+		}
 	}
 	
-	free(LwVM);
-	fclose(img_f);
+	cleanup(img_f, LwVM);
 	
 	
 	return 0;
