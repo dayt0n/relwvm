@@ -1,3 +1,5 @@
+Warning: this tool is very buggy for now.
+
 lwvmedit
 ========
 
