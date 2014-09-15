@@ -201,6 +201,10 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 			if (*(&LwVM->numPartitions) < 12)
 			{
 				memset(&LwVM->partitions[*(&LwVM->numPartitions)], 0, sizeof(LwVMPartitionRecord));
+				uint64_t new_guid[2];
+				new_guid[0] = random();
+				new_guid[1] = random();
+				memcpy(&LwVM->partitions[*(&LwVM->numPartitions)].guid[0], &new_guid[0], sizeof(*new_guid));
 				*(&LwVM->numPartitions) = *(&LwVM->numPartitions) + 1;
 				printf("Done.\n");
 			}
