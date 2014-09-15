@@ -251,13 +251,29 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 				{
 					printf("Begin [0-%llu(MB/GB)]: ", *(&LwVM->mediaSize));
 					
-					*(&LwVM->partitions[part_to_edit].begin) = get_param_input();
+					uint64_t new_begin = get_param_input();
+					if (new_begin > *(&LwVM->mediaSize))
+					{
+						printf("Can't create a partition beyond the disk.\n");
+					}
+					else
+					{
+						*(&LwVM->partitions[part_to_edit].begin) = new_begin;
+					}
 				}
 				else if (!strcmp(input, "end\n"))
 				{
 					printf("End [0-%llu(MB/GB)]: ", *(&LwVM->mediaSize));
 					
-					*(&LwVM->partitions[part_to_edit].end) = get_param_input();
+					uint64_t new_end = get_param_input();
+					if (new_end > *(&LwVM->mediaSize))
+					{
+						printf("Can't set partition begin beyond the disk.\n");
+					}
+					else
+					{
+						*(&LwVM->partitions[part_to_edit].end) = new_end;
+					}
 				}
 				else if (!strcmp(input, "type\n"))
 				{
