@@ -205,6 +205,7 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 				uint64_t new_guid[2];
 				FILE *random_f = fopen("/dev/random", "r");
 				while(fread(&new_guid, 1, 16, random_f) != 16);
+				fclose(random_f);
 				
 				memcpy(&LwVM->partitions[*(&LwVM->numPartitions)].guid[0], &new_guid[0], 16);
 				*(&LwVM->numPartitions) = *(&LwVM->numPartitions) + 1;
@@ -448,7 +449,7 @@ int main(int argc, const char *argv[])
 		return 1;
 	}
 	
-	FILE *img_f = fopen(argv[fn_arg], "rb+");
+	FILE *img_f = fopen(argv[fn_arg], "rb");
 	
 	if (img_f == 0)
 	{
@@ -495,6 +496,8 @@ int main(int argc, const char *argv[])
 		if (status == SAVE_CHANGES)
 		{
 			printf("Writing new LwVM table.\n");
+			fclose(img_f);
+			img_f = fopen(argv[fn_arg], "wb");
 			fseek(img_f, 0L, SEEK_SET);
 			if (fwrite(LwVM, 1, sizeof(*LwVM), img_f) != 4096)
 			{
