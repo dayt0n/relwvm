@@ -130,12 +130,12 @@ uint64_t get_param_input()
 	
 	if (!strcmp(&input[strlen(input) - 3], "MB\n"))
 	{
-		input[strlen(input) - 3] = 0;
+		input[strlen(input) - 2] = 0;
 		return atoi(input) * 1024 * 1024;
 	}
 	else if (!strcmp(&input[strlen(input) - 3], "GB\n"))
 	{
-		input[strlen(input) - 3] = 0;
+		input[strlen(input) - 2] = 0;
 		return atoi(input) * 1024 * 1024 * 1024;
 	}
 	

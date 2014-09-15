@@ -1,5 +1,3 @@
-WARNING!!! A SERIOUS BUG WAS FOUND, DO NOT USE THIS TOOL FOR NOW. I am too tired to fix it...
-
 lwvmedit
 ========
 
