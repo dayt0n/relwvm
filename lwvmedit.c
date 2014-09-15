@@ -9,7 +9,7 @@
 
 char *lwvm_name_to_str(char *name)
 {
-	if (name[0] == 0 || name[1] != 0) return 0;
+	//if (name[0] == 0 || name[1] != 0) return 0;
 	
 	char *output = malloc(LwVM_NAME_LEN + 1);
 	
@@ -22,6 +22,40 @@ char *lwvm_name_to_str(char *name)
 	output[i] = 0;
 	
 	return output;
+}
+
+char *str_to_lwvm_name(char *str)
+{
+	char *output = malloc(LwVM_NAME_LEN * 2);
+	memset(output, 0, LwVM_NAME_LEN * 2);
+	
+	int i;
+	for(i = 0; i < (LwVM_NAME_LEN * 2) && str[i] != 0; i++)
+	{
+		output[i * 2] = (char) str[i];
+	}
+	
+	return output;
+}
+
+int pt_splice(struct _LwVM *LwVM, int part_num)
+{
+	if (*(&LwVM->numPartitions) < part_num)
+	{
+		return E_NOPART;
+	}
+	
+	int i;
+	for(i = part_num - 1; i < (*(&LwVM->numPartitions) - 1); i++)
+	{
+		memcpy(&LwVM->partitions[i], &LwVM->partitions[i + 1], sizeof(LwVMPartitionRecord));
+	}
+	
+	memset(&LwVM->partitions[i], 0, sizeof(LwVMPartitionRecord));
+	
+	*(&LwVM->numPartitions) = *(&LwVM->numPartitions) - 1;
+	
+	return 0;
 }
 
 void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
@@ -85,6 +119,25 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 	}
 }
 
+uint64_t get_param_input()
+{
+	char input[14];
+	fgets(&input[0], 14, stdin);
+	
+	if (!strcmp(&input[strlen(input) - 3], "MB\n"))
+	{
+		input[strlen(input) - 3] = 0;
+		return atoi(input) * 1024 * 1024;
+	}
+	else if (!strcmp(&input[strlen(input) - 3], "GB\n"))
+	{
+		input[strlen(input) - 3] = 0;
+		return atoi(input) * 1024 * 1024 * 1024;
+	}
+	
+	return atoi(input);
+}
+
 void damage_warning()
 {
 	printf("WARNING: this expiremental tool is very DANGEROUS. You are going to edit the partition table with it. Use it your own risk! The copyright holder is not responsible for any damage this software can do.\n");
@@ -104,17 +157,27 @@ void edit_help()
 	printf("print	show partition information.\n");
 	printf("quit	quit without saving changes.\n");
 	printf("write	save changes and exit.\n");
-	printf("add	add an empty (disabled) partition (max: 12).");
+	printf("add	add an empty (disabled) partition (max: 12).\n");
+	printf("rm	remove a partition.\n");
+	printf("edit	edit a partition entry.");
+}
+
+void available_part_types()
+{
+	printf("Available partition types:\n");
+	printf("-HFS\n");
+	printf("-Disabled\n");
+	printf("\nNew types may be added soon.\n");
 }
 
 int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 {
-	char input[10];
+	char input[CLI_INPUT_BUFF_SZ];
 	while(1)
 	{
 		printf("Command (? for help): ");
 		
-		fgets(&input[0], 10, stdin);
+		fgets(&input[0], CLI_INPUT_BUFF_SZ, stdin);
 		
 		if (!strcmp(input, "?\n") || !strcmp(input, "help\n") || !strcmp(input, "h\n"))
 		{
@@ -137,20 +200,108 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 		{
 			if (*(&LwVM->numPartitions) < 12)
 			{
+				memset(&LwVM->partitions[*(&LwVM->numPartitions)], 0, sizeof(LwVMPartitionRecord));
 				*(&LwVM->numPartitions) = *(&LwVM->numPartitions) + 1;
 				printf("Done.\n");
 			}
 			else printf("Can't create more than 12 partitions.\n");
 		}
-		/*else if (!strcmp(input, "edit\n") || !strcmp(input, "e\n"))
+		else if (!strcmp(input, "rm\n") || !strcmp(input, "r\n"))
 		{
-			printf("Type the number of the partition you want to edit [1-12]: ");
-			fgets(&input[0], 10, stdin);
+			if (*(&LwVM->numPartitions) == 0)
+			{
+				printf("Nothing to delete.\n\n");
+				continue;
+			}
+			
+			printf("Type the number of the partition you want to remove [1-%u]: ", *(&LwVM->numPartitions));
+			
+			fgets(&input[0], CLI_INPUT_BUFF_SZ, stdin);
+			
+			int part_num = atoi(input);
+			
+			if (pt_splice(LwVM, part_num) == E_NOPART)
+			{
+				printf("No such partition.\n");
+			}
+			else
+			{
+				printf("Done.\n");
+			}
+		}
+		else if (!strcmp(input, "edit\n") || !strcmp(input, "e\n"))
+		{
+			printf("Type the number of the partition you want to edit [1-%u]: ", *(&LwVM->numPartitions));
+			fgets(&input[0], CLI_INPUT_BUFF_SZ, stdin);
 			
 			int part_to_edit = atoi(input);
 			part_to_edit--;
-			if (part_to_edit < 12 && part_to_edit >= 0)
-		}*/
+			if (part_to_edit < 12 && part_to_edit >= 0 && part_to_edit < *(&LwVM->numPartitions))
+			{
+				printf("What parameter do you want to edit? [begin/end/type/name] ");
+				fgets(&input[0], CLI_INPUT_BUFF_SZ, stdin);
+				
+				if (!strcmp(input, "begin\n"))
+				{
+					printf("Begin [0-%llu(MB/GB)]: ", *(&LwVM->mediaSize));
+					
+					*(&LwVM->partitions[part_to_edit].begin) = get_param_input();
+				}
+				else if (!strcmp(input, "end\n"))
+				{
+					printf("End [0-%llu(MB/GB)]: ", *(&LwVM->mediaSize));
+					
+					*(&LwVM->partitions[part_to_edit].end) = get_param_input();
+				}
+				else if (!strcmp(input, "type\n"))
+				{
+					while(1)
+					{
+						printf("Enter partition type you want (? for help): ");
+						fgets(&input[0], CLI_INPUT_BUFF_SZ, stdin);
+						
+						if (!strcmp(input, "?\n"))
+						{
+							available_part_types();
+						}
+						else if (!strcmp(input, "HFS\n") || !strcmp(input, "hfs\n"))
+						{
+							memcpy(&LwVM->partitions[part_to_edit].type, LwVMPartitionTypeHFS, sizeof(*LwVMPartitionTypeHFS));
+							break;
+						}
+						else if (!strcmp(input, "disabled\n") || !strcmp(input, "Disabled\n"))
+						{
+							memcpy(&LwVM->partitions[part_to_edit].type, LwVMPartitionTypeDisabled, sizeof(*LwVMPartitionTypeDisabled));
+							break;
+						}
+						else
+						{
+							printf("Unknown type: %s\n", input);
+							available_part_types();
+						}
+					}
+				}
+				else if (!strcmp(input, "name\n"))
+				{
+					printf("Type new name of the partition (max of 36 characters): ");
+					fgets(&input[0], CLI_INPUT_BUFF_SZ, stdin);
+					
+					input[strlen(input) - 1] = 0; //Remove the \n byte.
+					char *lwvm_name = str_to_lwvm_name(input);
+					memcpy(&LwVM->partitions[part_to_edit].partitionName, lwvm_name, 0x48);
+					
+					free(lwvm_name);
+				}
+				else
+				{
+					printf("Invalid parameter name.\n");
+				}
+			}
+			else
+			{
+				printf("Invalid number.\n");
+			}
+		}
 		else if (strcmp(input, " \n") && strcmp(input, "\n"))
 		{
 			edit_help();
@@ -166,6 +317,30 @@ void cleanup(FILE *img_f, struct _LwVM *LwVM)
 {
 	free(LwVM);
 	fclose(img_f);
+}
+
+void errno_print()
+{
+	if (errno == EBUSY)
+	{
+		printf("Error: device or resource busy.\n");
+	}
+	else if (errno == EPERM)
+	{
+		printf("Error: operation not permitted.\n");
+	}
+	else if (errno == EACCES)
+	{
+		printf("Error: permission denied.\n");
+	}
+	else if (errno == EBADF)
+	{
+		printf("Error: bad file descriptor.\n");
+	}
+	else
+	{
+		printf("Unknown error occured (%i).\n", errno);
+	}
 }
 
 void help(const char *exec_path)
@@ -251,36 +426,29 @@ int main(int argc, const char *argv[])
 		return 1;
 	}
 	
-	FILE *img_f = fopen(argv[fn_arg], "r+b");
+	FILE *img_f = fopen(argv[fn_arg], "rb+");
 	
 	if (img_f == 0)
 	{
 		printf("Can't open file: %s\n", argv[fn_arg]);
 		
-		if (errno == EBUSY)
-		{
-			printf("Error: device or resource busy.\n");
-		}
-		else if (errno == EPERM)
-		{
-			printf("Error: operation not permitted.\n");
-		}
-		else if (errno == EACCES)
-		{
-			printf("Error: permission denied.\n");
-		}
-		else
-		{
-			printf("Unknown error occured (%i).\n", errno);
-		}
-		
+		errno_print();
 		
 		return 1;
 	}
 	
 	struct _LwVM *LwVM = malloc(sizeof(*LwVM));
 	fseek(img_f, 0L, SEEK_SET);
-	fread(LwVM, 1, sizeof(*LwVM), img_f);
+	if (fread(LwVM, 1, sizeof(*LwVM), img_f) != 4096)
+	{
+		printf("Can't read file: %s\n", argv[fn_arg]);
+		
+		errno_print();
+		
+		cleanup(img_f, LwVM);
+		
+		return 1;
+	}
 	
 	bool pt_no_crc = !memcmp(LwVM->type, LwVMType_noCRC, sizeof(*LwVMType_noCRC));
 	if (memcmp(LwVM->type, LwVMType, sizeof(*LwVMType)) != 0 && !pt_no_crc)
@@ -305,13 +473,11 @@ int main(int argc, const char *argv[])
 		if (status == SAVE_CHANGES)
 		{
 			printf("Writing new LwVM table.\n");
-			//fseek(img_f, 0L, SEEK_SET);
-			printf("wrote: %lu\n", fwrite(LwVM, 1, sizeof(*LwVM), img_f));
-			printf("errno == %i\n", errno);
-		}
-		else if (status == DISCARD_CHANGES)
-		{
-			printf("Discarding changes.\n");
+			fseek(img_f, 0L, SEEK_SET);
+			if (fwrite(LwVM, 1, sizeof(*LwVM), img_f) != 4096)
+			{
+				errno_print();
+			}
 		}
 	}
 	

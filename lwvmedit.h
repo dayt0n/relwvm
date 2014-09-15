@@ -1,8 +1,12 @@
 #define A_LIST 1
 #define A_EDIT 2
 
+#define CLI_INPUT_BUFF_SZ 0x24
+
 #define SAVE_CHANGES 1
 #define DISCARD_CHANGES 2
+
+#define E_NOPART 1
 
 #define LwVM_NAME_LEN 0x24
 
