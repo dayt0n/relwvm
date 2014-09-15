@@ -93,6 +93,10 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 		{
 			printf("HFS\n");
 		}
+		else if (!memcmp(LwVMPartitionTypeLinuxData, &LwVM->partitions[i].type, sizeof(*LwVMPartitionTypeLinuxData)))
+		{
+			printf("Linux data\n");
+		}
 		else
 		{
 			printf("unrecognized.\n");
@@ -166,6 +170,7 @@ void available_part_types()
 {
 	printf("Available partition types:\n");
 	printf("-HFS\n");
+	printf("-LinuxData\n");
 	printf("-Disabled\n");
 	printf("\nNew types may be added soon.\n");
 }
@@ -290,6 +295,11 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 						else if (!strcmp(input, "HFS\n") || !strcmp(input, "hfs\n"))
 						{
 							memcpy(&LwVM->partitions[part_to_edit].type, LwVMPartitionTypeHFS, sizeof(*LwVMPartitionTypeHFS));
+							break;
+						}
+						else if (!strcmp(input, "LinuxData\n") || !strcmp(input, "linuxdata\n"))
+						{
+							memcpy(&LwVM->partitions[part_to_edit].type, LwVMPartitionTypeLinuxData, sizeof(*LwVMPartitionTypeLinuxData));
 							break;
 						}
 						else if (!strcmp(input, "disabled\n") || !strcmp(input, "Disabled\n"))
