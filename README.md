@@ -1,4 +1,4 @@
-Warning: this tool is very buggy for now.
+Warning: this tool is very buggy for now (reading is safe).
 
 lwvmedit
 ========
