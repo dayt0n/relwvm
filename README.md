@@ -3,7 +3,7 @@ Warning: this tool was never tested on real hardware, only on LwVM dumps. It can
 lwvmedit
 ========
 
-A tool for editing LwVM (currently only listing). WARNING: I'm not responsive for any damage, this tool can do.
+A tool for editing LwVM partitions tables. WARNING: I'm not responsive for any damage, this tool can do.
 
 
 License
