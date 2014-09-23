@@ -7,3 +7,6 @@ lwvmedit: lwvmedit.c lwvmedit.h
 
 install: lwvmedit
 	install -C lwvmedit /usr/bin
+
+deviceinstall:
+	@echo "Not implemented."

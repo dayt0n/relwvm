@@ -509,10 +509,24 @@ int main(int argc, const char *argv[])
 			printf("Writing new LwVM table.\n");
 			fclose(img_f);
 			img_f = fopen(argv[fn_arg], "wb");
+			
+			if (img_f == 0)
+			{
+				printf("Failed to open file for writing.\n");
+				errno_print();
+				
+				free(LwVM);
+				return 1;
+			}
+			
 			fseek(img_f, 0L, SEEK_SET);
 			if (fwrite(LwVM, 1, sizeof(*LwVM), img_f) != 4096)
 			{
+				printf("Write failed.\n");
 				errno_print();
+				
+				cleanup(img_f, LwVM);
+				return 1;
 			}
 		}
 	}
