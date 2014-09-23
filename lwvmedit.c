@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
 #include "lwvmedit.h"
@@ -72,7 +73,7 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 	printf("This partition table has %u partition(s).\n", *(&LwVM->numPartitions));
 	
 	int i;
-	int disabled_partitions = 0;
+	//int disabled_partitions = 0;
 	for (i = 0; i < *(&LwVM->numPartitions); i++)
 	{
 		printf("\nPartition %i:\n", i + 1);
@@ -130,13 +131,13 @@ uint64_t get_param_input()
 	
 	if (!strcmp(&input[strlen(input) - 3], "MB\n"))
 	{
-		input[strlen(input) - 2] = 0;
-		return atoi(input) * 1024 * 1024;
+		input[strlen(input) - 3] = 0;
+		return (uint64_t) atoi(input) * 1024 * 1024;
 	}
 	else if (!strcmp(&input[strlen(input) - 3], "GB\n"))
 	{
-		input[strlen(input) - 2] = 0;
-		return atoi(input) * 1024 * 1024 * 1024;
+		input[strlen(input) - 3] = 0;
+		return (uint64_t) atoi(input) * 1024 * 1024 * 1024;
 	}
 	
 	return atoi(input);
