@@ -1,4 +1,4 @@
-Warning: this tool is very buggy for now (reading is safe).
+Warning: this tool was never tested on real hardware, only on LwVM dumps. It can mess up your device or even cause it to enter recovery mode.
 
 lwvmedit
 ========
