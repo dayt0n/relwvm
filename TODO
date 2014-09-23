@@ -1,0 +1,2 @@
+1. Create a ramdisk for partitioning on real devices.
+2. Add "undo" command for interactive mode.
