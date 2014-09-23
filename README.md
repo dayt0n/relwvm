@@ -1,4 +1,4 @@
-Warning: this tool was never tested on real hardware, only on LwVM dumps. It can mess up your device or even cause an unfixable recovery mode loop.
+Warning: this tool was never tested on real hardware, only on LwVM dumps. It can mess up your device or even cause an unfixable recovery mode loop (you'll need to restore it with iTunes).
 
 lwvmedit
 ========
