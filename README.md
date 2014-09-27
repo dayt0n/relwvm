@@ -10,3 +10,9 @@ License
 =======
 
 See LICENSE for full information. Licensed under BSD 3-Clause license.
+
+
+Ramdisk?
+========
+
+It's broken, lazy to fix it.
