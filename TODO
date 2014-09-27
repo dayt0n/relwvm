@@ -1,2 +1,3 @@
-1. Create a ramdisk for partitioning on real devices.
+1. Create a ramdisk for partitioning on real devices (to avoid "resource busy" error).
 2. Add "undo" command for interactive mode.
+3. Clean up the code.

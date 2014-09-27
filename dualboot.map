@@ -1,0 +1,12 @@
+//If you want to use this file, don't forget to set sizes, which are convenient for you.
+//Note, that partition parameters (type, name, etc) must be separated by only one space. Tabs and spaces can be placed only before parameters.
+
+part 2
+	end 8GB
+endpart
+
+
+part 3
+	name System6
+	begin 8GB
+endpart

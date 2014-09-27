@@ -1,0 +1,1 @@
+void *gen_guid();

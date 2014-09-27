@@ -5,13 +5,16 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include "lwvmedit.h"
+#include "genguid.h"
 
 
+//I didn't know, that they are UTF-16 encoded.
 char *lwvm_name_to_str(char *name)
 {
-	//if (name[0] == 0 || name[1] != 0) return 0;
-	
 	char *output = malloc(LwVM_NAME_LEN + 1);
 	
 	int i;
@@ -73,7 +76,6 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 	printf("This partition table has %u partition(s).\n", *(&LwVM->numPartitions));
 	
 	int i;
-	//int disabled_partitions = 0;
 	for (i = 0; i < *(&LwVM->numPartitions); i++)
 	{
 		printf("\nPartition %i:\n", i + 1);
@@ -90,9 +92,9 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 		printf("-GUID (?): %llx%llx\n", *(&LwVM->partitions[i].guid[1]), *(&LwVM->partitions[i].guid[0]));
 		
 		printf("-Type: ");
-		if (!memcmp(LwVMPartitionTypeHFS, &LwVM->partitions[i].type, sizeof(*LwVMPartitionTypeHFS)))
+		if (!memcmp(LwVMPartitionTypeHFSPlus, &LwVM->partitions[i].type, sizeof(*LwVMPartitionTypeHFSPlus)))
 		{
-			printf("HFS\n");
+			printf("HFS+\n");
 		}
 		else if (!memcmp(LwVMPartitionTypeLinuxData, &LwVM->partitions[i].type, sizeof(*LwVMPartitionTypeLinuxData)))
 		{
@@ -104,7 +106,7 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 		}
 		
 		printf("-Encryption (?): ");
-		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n");
+		if (*(&LwVM->partitions[i].attribute) == 0x1000000000000) printf("yes\n"); //Should it be 0x10... or just a bit set?
 		else printf("no\n");
 		
 		if (human_readable)
@@ -124,23 +126,33 @@ void print_pt(struct _LwVM *LwVM, bool pt_no_crc)
 	}
 }
 
-uint64_t get_param_input()
+uint64_t parse_size_str(char *input)
 {
-	char input[14];
-	fgets(&input[0], 14, stdin);
-	
-	if (!strcmp(&input[strlen(input) - 3], "MB\n"))
+	if (!strcmp(&input[strlen(input) - 2], "MB"))
 	{
-		input[strlen(input) - 3] = 0;
+		input[strlen(input) - 2] = 0;
 		return (uint64_t) atoi(input) * 1024 * 1024;
 	}
-	else if (!strcmp(&input[strlen(input) - 3], "GB\n"))
+	else if (!strcmp(&input[strlen(input) - 2], "GB"))
 	{
 		input[strlen(input) - 3] = 0;
 		return (uint64_t) atoi(input) * 1024 * 1024 * 1024;
 	}
+	else if (!strcmp(&input[strlen(input) - 1], "B"))
+	{
+		input[strlen(input) - 2] = 0;
+	}
 	
 	return atoi(input);
+}
+
+uint64_t get_param_input()
+{
+	char input[14];
+	fgets(&input[0], 14, stdin);
+	input[strlen(input) - 1] = 0;
+	
+	return parse_size_str(input);
 }
 
 void damage_warning()
@@ -170,7 +182,7 @@ void edit_help()
 void available_part_types()
 {
 	printf("Available partition types:\n");
-	printf("-HFS\n");
+	printf("-HFS+\n");
 	printf("-LinuxData\n");
 	printf("-Disabled\n");
 	printf("\nNew types may be added soon.\n");
@@ -208,13 +220,16 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 			{
 				memset(&LwVM->partitions[*(&LwVM->numPartitions)], 0, sizeof(LwVMPartitionRecord));
 				
-				uint64_t new_guid[2];
+				/*uint64_t new_guid[2];
 				FILE *random_f = fopen("/dev/random", "r");
 				while(fread(&new_guid, 1, 16, random_f) != 16);
-				fclose(random_f);
+				fclose(random_f);*/
+				
+				void *new_guid = gen_guid();
 				
 				memcpy(&LwVM->partitions[*(&LwVM->numPartitions)].guid[0], &new_guid[0], 16);
 				*(&LwVM->numPartitions) = *(&LwVM->numPartitions) + 1;
+				free(new_guid);
 				printf("Done.\n");
 			}
 			else printf("Can't create more than 12 partitions.\n");
@@ -293,9 +308,9 @@ int edit_pt(struct _LwVM *LwVM, bool pt_no_crc)
 						{
 							available_part_types();
 						}
-						else if (!strcmp(input, "HFS\n") || !strcmp(input, "hfs\n"))
+						else if (!strcmp(input, "HFS+\n") || !strcmp(input, "hfs+\n"))
 						{
-							memcpy(&LwVM->partitions[part_to_edit].type, LwVMPartitionTypeHFS, sizeof(*LwVMPartitionTypeHFS));
+							memcpy(&LwVM->partitions[part_to_edit].type, LwVMPartitionTypeHFSPlus, sizeof(*LwVMPartitionTypeHFSPlus));
 							break;
 						}
 						else if (!strcmp(input, "LinuxData\n") || !strcmp(input, "linuxdata\n"))
@@ -377,18 +392,184 @@ void errno_print()
 	}
 }
 
+int write_lwvm(FILE *img_f, struct _LwVM *LwVM)
+{
+	printf("Writing new LwVM table.\n");
+	
+	fseek(img_f, 0L, SEEK_SET);
+	if (fwrite(LwVM, 1, sizeof(*LwVM), img_f) != 4096)
+	{
+		printf("Write failed.\n");
+		errno_print();
+		
+		cleanup(img_f, LwVM);
+		return 1;
+	}
+	
+	return 0;
+}
+
+int load_map(struct _LwVM *LwVM, char *map)
+{
+	char *line_end;
+	char *line = map;
+	unsigned int line_sz;
+	unsigned int line_num = 1;
+	bool part_desc_open = false;
+	int current_partition;
+	
+	for(line_end = map; (line_end = strchr(line, '\n')) != NULL;)
+	{
+		line_sz = line_end - line;
+		
+		if (!strncmp(line, "//", 2));
+		else if (!strncmp(line, "part", 4))
+		{
+			if (!strncmp(line + 4, "\n", 1))
+			{
+				printf("Fatal syntax error at line %u: partition number not specified, exiting...", line_num);
+				return 1;
+			}
+			
+			part_desc_open = true;
+			current_partition = atoi(line + 5);
+			if (current_partition > 12)
+			{
+				printf("Fatal error at line %u: partition number too big.\n", line_num);
+				return 1;
+			}
+			
+			if (*(&LwVM->numPartitions) < current_partition)
+			{
+				*(&LwVM->numPartitions) = current_partition;
+				void *new_guid = gen_guid();
+				memcpy(&LwVM->partitions[current_partition - 1].guid[0], &new_guid[0], 16);
+				free(new_guid);
+			}
+		}
+		else if (!strncmp(line, "endpart", line_sz))
+		{
+			part_desc_open = false;
+		}
+		else if (!strncmp(line, "wipe", line_sz))
+		{
+			*(&LwVM->numPartitions) = 0;
+			memset(&LwVM->partitions[0], 0, sizeof(LwVMPartitionRecord) * 12);
+		}
+		else if (part_desc_open)
+		{
+			for(; line_sz != 0 && (!strncmp(line, " ", 1) || !strncmp(line, "\t", 1)); line++, line_sz--);
+			
+			if (!strncmp(line, "type", 4))
+			{
+				if (!strncmp(line + 5, "hfs+", line_sz - 5) || !strncmp(line + 5, "HFS+", line_sz - 5))
+				{
+					memcpy(&LwVM->partitions[current_partition - 1].type, LwVMPartitionTypeHFSPlus, sizeof(*LwVMPartitionTypeHFSPlus));
+				}
+				else if (!strncmp(line + 5, "linuxdata", line_sz - 5) || !strncmp(line + 5, "LinuxData", line_sz - 5))
+				{
+					memcpy(&LwVM->partitions[current_partition - 1].type, LwVMPartitionTypeLinuxData, sizeof(*LwVMPartitionTypeLinuxData));
+				}
+				else
+				{
+					printf("Error at line %u: unknown type, exiting...\n", line_num);
+					return 1;
+					/*if (ignore_errors)
+					{
+						printf("contiuing anyway...\n");
+					}
+					else
+					{
+						printf("exiting...\n");
+						return 1;
+					}*/
+				}
+			}
+			else if (!strncmp(line, "name", 4))
+			{
+				if (line_sz < 6)
+				{
+					printf("Syntax error at line %u: no paramter value, exiting...\n", line_num);
+					return 1;
+				}
+				
+				*(&line[line_sz]) = 0x00;
+				char *lwvm_name = str_to_lwvm_name(line + 5);
+				
+				memcpy(&LwVM->partitions[current_partition - 1].partitionName, lwvm_name, 0x48);
+				free(lwvm_name);
+			}
+			else if (!strncmp(line, "end ", 4))
+			{
+				if (line_sz < 5)
+				{
+					printf("Syntax error at line %u: no paramter value, exiting...\n", line_num);
+					return 1;
+				}
+				
+				line[line_sz] = 0;
+				*(&LwVM->partitions[current_partition - 1].end) = parse_size_str(line + 4);
+			}
+			else if (!strncmp(line, "begin", 5))
+			{
+				if (line_sz < 6)
+				{
+					printf("Syntax error at line %u: no paramter value, exiting...\n", line_num);
+					return 1;
+				}
+				
+				line[line_sz] = 0;
+				*(&LwVM->partitions[current_partition - 1].begin) = parse_size_str(line + 5);
+			}
+			else
+			{
+				printf("Map syntax error at line %u: unknown partition parameter, ", line_num);
+				if (ignore_errors)
+				{
+					printf("ignoring...\n");
+				}
+				else
+				{
+					printf("exiting...\n");
+					return 1;
+				}
+			}
+		}
+		else
+		{
+			printf("Map syntax error at line %u: wrong operation or partition parameter outside any partition descriptor, ", line_num);
+			if (ignore_errors)
+			{
+				printf("ignoring...\n");
+			}
+			else
+			{
+				printf("exiting...\n");
+				return 1;
+			}
+		}
+		
+		line = ++line_end;
+		line_num++;
+	}
+	
+	
+	return 0;
+}
+
 void help(const char *exec_path)
 {
 	printf("lwvmedit v0.1\n");
 	printf("Usage: %s [OPTIONS] [FILE]\n", exec_path);
 	
 	printf("Options:\n");
-	printf(" -h, --help		show this help text and exit.\n");
-	printf(" -v, --version		show version and exit.\n");
-	printf(" -l, --list		list partitions.\n");
-	printf(" -E, --ignore-errors	ignore errors, some fatals can still interrupt execution.\n");
-	printf(" -H, --human-readable	output all values in human-readable format.\n");
-	printf(" -e, --edit		enter interactive mode.\n");
+	printf(" -h, --help			show this help text and exit.\n");
+	printf(" -v, --version			show version and exit.\n");
+	printf(" -l, --list			list partitions.\n");
+	printf(" -E, --ignore-errors		try to ignore errors, some fatals can still interrupt execution.\n");
+	printf(" -H, --human-readable		output all values in human-readable format.\n");
+	printf(" -e, --edit			enter interactive mode.\n");
+	printf(" -f, --from-file=FILE		read partition layout from FILE. See dualboot.map for an example.\n");
 }
 
 void version()
@@ -410,6 +591,8 @@ int main(int argc, const char *argv[])
 	}
 	
 	int fn_arg = 0;
+	
+	const char *map_fn_arg = 0;
 	
 	int action = 0;
 	
@@ -442,6 +625,15 @@ int main(int argc, const char *argv[])
 		{
 			action = A_EDIT;
 		}
+		else if (!strcmp(argv[i], "-f"))
+		{
+			i++;
+			map_fn_arg = argv[i];
+		}
+		else if (!strncmp(argv[i], "--from-file=", 12))
+		{
+			map_fn_arg = argv[i] + 12;
+		}
 		else if (argv[i][0] != '-')
 		{
 			fn_arg = i;
@@ -454,13 +646,13 @@ int main(int argc, const char *argv[])
 		}
 	}
 	
-	if (action == 0)
+	if (action == 0 && map_fn_arg == 0)
 	{
 		help(argv[0]);
 		return 1;
 	}
 	
-	FILE *img_f = fopen(argv[fn_arg], "rb");
+	FILE *img_f = fopen(argv[fn_arg], "r+b");
 	
 	if (img_f == 0)
 	{
@@ -497,6 +689,59 @@ int main(int argc, const char *argv[])
 		}
 	}
 	
+	if (map_fn_arg)
+	{
+		struct stat st;
+		if (stat(map_fn_arg, &st) != 0)
+		{
+			printf("Can't stat file: %s\n", map_fn_arg);
+			
+			errno_print();
+			
+			cleanup(img_f, LwVM);
+			return 1;
+		}
+		
+		FILE *map_f = fopen(map_fn_arg, "r");
+		if (map_f == 0)
+		{
+			printf("Can't open map: %s\n", map_fn_arg);
+			
+			errno_print();
+			
+			cleanup(img_f, LwVM);
+			return 1;
+		}
+		
+		char *map = malloc(st.st_size);
+		if (fread(map, 1, st.st_size, map_f) != st.st_size)
+		{
+			printf("Can't read map: %s\n", map_fn_arg);
+			
+			errno_print();
+			
+			cleanup(img_f, LwVM);
+			fclose(map_f);
+			return 1;
+		}
+		
+		fclose(map_f);
+		
+		int map_load_status = load_map(LwVM, map);
+		
+		if (map_load_status)
+		{
+			printf("Map parse failed.\n");
+			cleanup(img_f, LwVM);
+			return 1;
+		}
+		
+		printf("Map load success.\n");
+		write_lwvm(img_f, LwVM);
+		cleanup(img_f, LwVM);
+		return 0;
+	}
+	
 	if (action == A_LIST)
 	{
 		print_pt(LwVM, pt_no_crc);
@@ -506,28 +751,7 @@ int main(int argc, const char *argv[])
 		int status = edit_pt(LwVM, pt_no_crc);
 		if (status == SAVE_CHANGES)
 		{
-			printf("Writing new LwVM table.\n");
-			fclose(img_f);
-			img_f = fopen(argv[fn_arg], "wb");
-			
-			if (img_f == 0)
-			{
-				printf("Failed to open file for writing.\n");
-				errno_print();
-				
-				free(LwVM);
-				return 1;
-			}
-			
-			fseek(img_f, 0L, SEEK_SET);
-			if (fwrite(LwVM, 1, sizeof(*LwVM), img_f) != 4096)
-			{
-				printf("Write failed.\n");
-				errno_print();
-				
-				cleanup(img_f, LwVM);
-				return 1;
-			}
+			return write_lwvm(img_f, LwVM);
 		}
 	}
 	
